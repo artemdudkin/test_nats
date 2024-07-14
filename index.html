@@ -1,0 +1,47 @@
+<!doctype html>
+<html>
+<head>
+<script defer type="module">
+
+      import {
+        connect,
+        JSONCodec,
+      } from "https://cdn.jsdelivr.net/npm/nats.ws@1.10.0/esm/nats.js";
+
+        const jc = JSONCodec();
+
+        async function sub(nc, subject, callback) {
+            const sub = nc.subscribe(subject);
+            for await (const m of sub) {
+                callback(jc.decode(m.data));
+            }
+        }
+        async function resub(nc, subject, callback) {
+            sub(nc, subject, callback).then().catch(err=>{
+                console.log('failed to parse JSON:', err);
+                console.log('will resubscribe');
+                resub(nc, subject, callback)
+            })
+        }
+
+        async function start(subject, callback) {
+            try {
+                const nc = await connect({
+                    servers: ["ws://localhost:8080"],
+                });
+
+                console.log('connected');
+
+                resub(nc, subject, callback);
+
+            } catch (ex) {
+                console.log('failed first connection, will reconnect in 2 seconds');
+                setTimeout(()=>{start()}, 2000);
+            }
+        }
+
+        start( 'xyz', (msg)=>{console.log(msg)} );
+    
+</script>
+</head>
+</html>
